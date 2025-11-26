@@ -55,10 +55,15 @@ jobs:
           echo "changes_made=true" >> $GITHUB_OUTPUT
         fi
         
-    - name: Push changes to main branch
+    - name: Push changes to main branch (Fixing Conflicts)
       if: steps.commit.outputs.changes_made == 'true'
       run: |
-        # The token is available from the checkout step, allowing simple git push
+        echo "Attempting to push changes..."
+        # 1. Rebase: Pull the latest remote changes and apply our new commit on top.
+        # This resolves the non-fast-forward error.
+        git pull --rebase origin main
+        
+        # 2. Push the successfully rebased changes
         git push
         
     - name: Deployment Success Instructions
