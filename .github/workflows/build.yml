@@ -13,14 +13,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Explicitly grant write access for the GITHUB_TOKEN
+      contents: write # CRITICAL: Grants the GITHUB_TOKEN the right to commit and push changes
       
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        # Needed to commit changes back to the repository
         token: ${{ secrets.GITHUB_TOKEN }}
+        # Fetch entire history (depth 0) to allow the subsequent git commit/push to work correctly.
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -35,26 +36,33 @@ jobs:
     - name: Run blog build script
       run: python build.py
       
-    - name: Commit generated files
+    - name: Configure Git and Commit generated files
       id: commit
       run: |
-        git config --global user.name 'GitHub Actions Bot'
-        git config --global user.email 'github-actions-bot@users.noreply.github.com'
+        # Set the official GitHub Actions Bot identity
+        git config user.name 'github-actions[bot]'
+        git config user.email 'github-actions[bot]@users.noreply.github.com'
         
         # Add all generated HTML files and the updated index.html
         git add *.html
         
-        # Check if there are any changes to commit
-        if git diff --cached --exit-code; then
-          echo "no_changes=true" >> $GITHUB_OUTPUT
+        # Check if there are any changes staged for commit
+        if git diff --staged --quiet; then
+          echo "No changes to commit (no new or modified posts)."
+          echo "changes_made=false" >> $GITHUB_OUTPUT
         else
           git commit -m "Automated: Generate HTML posts and update index"
-          git push
-          echo "no_changes=false" >> $GITHUB_OUTPUT
+          echo "changes_made=true" >> $GITHUB_OUTPUT
         fi
         
-    - name: Deployment Instructions
-      if: steps.commit.outputs.no_changes == 'false'
+    - name: Push changes to main branch
+      if: steps.commit.outputs.changes_made == 'true'
+      run: |
+        # The token is available from the checkout step, allowing simple git push
+        git push
+        
+    - name: Deployment Success Instructions
+      if: steps.commit.outputs.changes_made == 'true'
       run: |
         echo "Successfully generated HTML and updated index.html."
         echo "Files committed and pushed back to the 'main' branch."
